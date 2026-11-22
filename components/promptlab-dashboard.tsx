@@ -63,6 +63,12 @@ export default function PromptLabDashboard() {
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [techniquePrompt, setTechniquePrompt] = useState(techniques[0].sample)
+  const [openingVisible, setOpeningVisible] = useState(true)
+  const [openingPrompt, setOpeningPrompt] = useState('')
+
+  useEffect(() => {
+    if (openingVisible) document.getElementById('opening-input')?.focus()
+  }, [openingVisible])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
@@ -205,8 +211,42 @@ export default function PromptLabDashboard() {
     goTo('playground')
   }
 
+  function enterStudio() {
+    setPrompt(openingPrompt.trim())
+    setOpeningVisible(false)
+    window.setTimeout(() => document.getElementById('prompt-input')?.focus(), 0)
+  }
+
+  function handleOpeningKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    enterStudio()
+  }
+
   return (
-    <main id="home" className="dashboard-shell">
+    <>
+      {openingVisible && <section className="opening-screen" role="dialog" aria-modal="true" aria-labelledby="opening-title">
+        <a className="opening-brand" href="#home" aria-label="PromptLab AI"><span className="brand-mark">P</span><span>PromptLab <b>AI</b></span></a>
+        <div className="opening-content">
+          <div className="opening-scene" aria-hidden="true">
+            <span className="opening-ring opening-ring-one"/><span className="opening-ring opening-ring-two"/><span className="opening-orbit-dot opening-dot-one"/><span className="opening-orbit-dot opening-dot-two"/>
+            <span className="opening-avatar"><i className="opening-eye opening-eye-left"/><i className="opening-eye opening-eye-right"/><i className="opening-blush opening-blush-left"/><i className="opening-blush opening-blush-right"/><i className="opening-highlight"/></span>
+            <span className="opening-light"/>
+          </div>
+          <span className="opening-kicker"><Sparkles size={14}/> YOUR AI PROMPT COMPANION</span>
+          <h1 id="opening-title">What&apos;s on your mind today?</h1>
+          <p>Shape a thought into a prompt worth exploring.</p>
+          <div className="opening-input-shell">
+            <button className="opening-add" type="button" aria-label="Add a starter prompt" onClick={() => setOpeningPrompt((current) => current || 'Help me create a clear, useful prompt about ')}><Plus size={20}/></button>
+            <label className="sr-only" htmlFor="opening-input">Ask anything</label>
+            <input id="opening-input" autoComplete="off" value={openingPrompt} onChange={(event) => setOpeningPrompt(event.target.value)} onKeyDown={handleOpeningKeyDown} placeholder="Ask anything" />
+            <button className="opening-submit" type="button" aria-label="Open PromptLab" onClick={enterStudio}><ArrowRight size={19}/></button>
+          </div>
+          <span className="opening-hint">Press Enter to open your studio</span>
+        </div>
+        <button className="opening-skip" type="button" onClick={() => { setOpeningVisible(false); window.setTimeout(() => document.getElementById('prompt-input')?.focus(), 0) }}>Skip intro <ArrowRight size={14}/></button>
+      </section>}
+      <main id="home" className="dashboard-shell" inert={openingVisible}>
       <header className="topbar">
         <a className="brand" href="#home" onClick={(event) => { event.preventDefault(); goTo('home') }} aria-label="PromptLab AI home">
           <span className="brand-mark">P</span><span>PromptLab <b>AI</b></span>
@@ -305,6 +345,7 @@ export default function PromptLabDashboard() {
       <section id="techniques" className="below-section glass-card"><div className="panel-heading"><span className="heading-icon"><FlaskConical size={18}/></span><div><h3>Prompt Techniques Lab</h3><p>Learn a pattern, adapt the example, and try it in the AI playground.</p></div></div><div className="techniques-grid">{techniques.map((item) => <button key={item.title} className="technique-card" onClick={() => setTechniquePrompt(item.sample)}><span>{item.title}</span><p>{item.body}</p></button>)}</div><label className="sr-only" htmlFor="technique-example">Editable technique example</label><textarea id="technique-example" className="technique-input" value={techniquePrompt} onChange={(event) => setTechniquePrompt(event.target.value)}/><button className="secondary-button" onClick={useTechnique}>Try this technique <ArrowRight size={15}/></button></section>
 
       <footer className="footer"><a className="brand footer-brand" href="#home" onClick={(event) => { event.preventDefault(); goTo('home') }}><span className="brand-mark">P</span><span>PromptLab <b>AI</b></span></a><span>Thoughtful prompts. Better outcomes.</span><button onClick={() => setNotice('PromptLab AI · AI powered by Vercel AI Gateway.') }><CircleHelp size={14}/> About PromptLab</button></footer>
-    </main>
+      </main>
+    </>
   )
 }
