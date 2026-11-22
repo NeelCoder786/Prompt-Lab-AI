@@ -56,6 +56,7 @@ export default function PromptLabDashboard() {
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
+  const [errorLink, setErrorLink] = useState('')
   const [advanced, setAdvanced] = useState(false)
   const [temperature, setTemperature] = useState(0.7)
   const [copied, setCopied] = useState(false)
@@ -137,6 +138,7 @@ export default function PromptLabDashboard() {
     setGenerating(true)
     setResult('')
     setError('')
+    setErrorLink('')
     setNotice('')
     try {
       const response = await fetch('/api/generate', {
@@ -145,7 +147,10 @@ export default function PromptLabDashboard() {
         body: JSON.stringify({ prompt: prompt.trim(), model, temperature }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Generation could not be completed.')
+      if (!response.ok) {
+        if (typeof payload.setupUrl === 'string') setErrorLink(payload.setupUrl)
+        throw new Error(payload.error || 'Generation could not be completed.')
+      }
       setResult(payload.text)
       if (user) {
         const { error: saveError } = await supabase.from('promptlab_activity').insert({ user_id: user.id, kind: 'generation', prompt: prompt.trim(), response: payload.text, model })
@@ -271,11 +276,11 @@ export default function PromptLabDashboard() {
         </article>
 
         <article id="playground" className="composer-panel glass-card">
-          <div className="panel-heading composer-heading"><span className="heading-icon bolt-icon"><Zap size={19}/></span><div><h3>{sections.find((item) => item.id === activeSection)?.name === 'home' ? 'Try It Now' : `Try It Now · ${sections.find((item) => item.id === activeSection)?.name}`}</h3><p>Enter a prompt, choose a model and generate a response.</p></div><button className={`advanced-button ${advanced ? 'advanced-active' : ''}`} onClick={() => setAdvanced(!advanced)}><Settings2 size={14}/> Advanced settings</button></div>
+          <div className="panel-heading composer-heading"><span className="heading-icon bolt-icon"><Zap size={19}/></span><div><h3>{sections.find((item) => item.id === activeSection)?.name ? `Try It Now · ${sections.find((item) => item.id === activeSection)?.name}` : 'Try It Now'}</h3><p>Enter a prompt, choose a model and generate a response.</p></div><button className={`advanced-button ${advanced ? 'advanced-active' : ''}`} onClick={() => setAdvanced(!advanced)}><Settings2 size={14}/> Advanced settings</button></div>
           {advanced && <div className="advanced-controls"><label>Temperature <span>{temperature.toFixed(1)}</span><input type="range" min="0" max="1" step="0.1" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))}/></label><span className="advanced-note">Controls response variation · 0.0–1.0</span></div>}
           <label className="sr-only" htmlFor="prompt-input">Write your prompt</label><textarea id="prompt-input" className="prompt-input" value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={8000} placeholder="e.g. Explain prompt engineering with examples and best practices…" />
           <div className="composer-bottom"><div className="composer-tools"><button className="tool-circle" aria-label="Attach a file (coming soon)" onClick={() => setNotice('File attachments are not enabled yet.')}><Paperclip size={17}/></button><button className="tool-circle" aria-label="Insert code block" onClick={() => setPrompt((current) => `${current}${current ? '\n\n' : ''}Use this code context:\n\`\`\`\n\n\`\`\``)}><Code2 size={17}/></button><button className="tool-circle" aria-label="Insert web context" onClick={() => setPrompt((current) => `${current}${current ? '\n\n' : ''}Use the following context: `)}><Globe size={17}/></button><span className="character-count">{prompt.length}/8000</span></div><div className="generate-controls"><label className="model-select"><span className="google-g">{selectedModel.vendor === 'Google Gemini' ? 'G' : 'Q'}</span><select value={model} onChange={(event) => setModel(event.target.value)} aria-label="Select AI model">{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><ChevronDown size={15}/></label><button className="primary-button generate-button" onClick={generate} disabled={!prompt.trim() || generating}>{generating ? <><LoaderCircle className="spin" size={16}/> Generating</> : <>Generate <Sparkles size={16}/></>}</button></div></div>
-          {error && <div className="response-error" role="alert">{error}</div>}
+          {error && <div className="response-error" role="alert"><span>{error}</span>{errorLink && <a href={errorLink} target="_blank" rel="noreferrer">Open Gateway billing settings <ArrowRight size={13}/></a>}</div>}
           {notice && <div className="inline-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message"><X size={14}/></button></div>}
           {result && <div className="response-card"><div className="response-head"><span><Sparkles size={15}/> Response</span><div><button onClick={copyResult} aria-label="Copy response">{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy'}</button><button onClick={savePrompt}><Bookmark size={15}/> Save prompt</button></div></div><p>{result}</p></div>}
         </article>

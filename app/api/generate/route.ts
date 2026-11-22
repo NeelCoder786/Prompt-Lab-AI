@@ -40,7 +40,16 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({ text })
-  } catch {
+  } catch (cause) {
+    if (cause instanceof Error && /credit card on file/i.test(cause.message)) {
+      return NextResponse.json(
+        {
+          error: 'AI Gateway needs a valid credit card on file before it can run models.',
+          setupUrl: 'https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card',
+        },
+        { status: 503 },
+      )
+    }
     return NextResponse.json(
       { error: 'AI generation is temporarily unavailable. Please retry in a moment.' },
       { status: 502 },
