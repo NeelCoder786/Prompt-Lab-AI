@@ -56,12 +56,19 @@ export default function PromptLabDashboard() {
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
+  const [errorLink, setErrorLink] = useState('')
   const [advanced, setAdvanced] = useState(false)
   const [temperature, setTemperature] = useState(0.7)
   const [copied, setCopied] = useState(false)
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [techniquePrompt, setTechniquePrompt] = useState(techniques[0].sample)
+  const [openingVisible, setOpeningVisible] = useState(true)
+  const [openingPrompt, setOpeningPrompt] = useState('')
+
+  useEffect(() => {
+    if (openingVisible) document.getElementById('opening-input')?.focus()
+  }, [openingVisible])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
@@ -137,6 +144,7 @@ export default function PromptLabDashboard() {
     setGenerating(true)
     setResult('')
     setError('')
+    setErrorLink('')
     setNotice('')
     try {
       const response = await fetch('/api/generate', {
@@ -145,7 +153,10 @@ export default function PromptLabDashboard() {
         body: JSON.stringify({ prompt: prompt.trim(), model, temperature }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Generation could not be completed.')
+      if (!response.ok) {
+        if (typeof payload.setupUrl === 'string') setErrorLink(payload.setupUrl)
+        throw new Error(payload.error || 'Generation could not be completed.')
+      }
       setResult(payload.text)
       if (user) {
         const { error: saveError } = await supabase.from('promptlab_activity').insert({ user_id: user.id, kind: 'generation', prompt: prompt.trim(), response: payload.text, model })
@@ -200,8 +211,42 @@ export default function PromptLabDashboard() {
     goTo('playground')
   }
 
+  function enterStudio() {
+    setPrompt(openingPrompt.trim())
+    setOpeningVisible(false)
+    window.setTimeout(() => document.getElementById('prompt-input')?.focus(), 0)
+  }
+
+  function handleOpeningKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    enterStudio()
+  }
+
   return (
-    <main id="home" className="dashboard-shell">
+    <>
+      {openingVisible && <section className="opening-screen" role="dialog" aria-modal="true" aria-labelledby="opening-title">
+        <a className="opening-brand" href="#home" aria-label="PromptLab AI"><span className="brand-mark">P</span><span>PromptLab <b>AI</b></span></a>
+        <div className="opening-content">
+          <div className="opening-scene" aria-hidden="true">
+            <span className="opening-ring opening-ring-one"/><span className="opening-ring opening-ring-two"/><span className="opening-orbit-dot opening-dot-one"/><span className="opening-orbit-dot opening-dot-two"/>
+            <span className="opening-avatar"><i className="opening-eye opening-eye-left"/><i className="opening-eye opening-eye-right"/><i className="opening-blush opening-blush-left"/><i className="opening-blush opening-blush-right"/><i className="opening-highlight"/></span>
+            <span className="opening-light"/>
+          </div>
+          <span className="opening-kicker"><Sparkles size={14}/> YOUR AI PROMPT COMPANION</span>
+          <h1 id="opening-title">What&apos;s on your mind today?</h1>
+          <p>Shape a thought into a prompt worth exploring.</p>
+          <div className="opening-input-shell">
+            <button className="opening-add" type="button" aria-label="Add a starter prompt" onClick={() => setOpeningPrompt((current) => current || 'Help me create a clear, useful prompt about ')}><Plus size={20}/></button>
+            <label className="sr-only" htmlFor="opening-input">Ask anything</label>
+            <input id="opening-input" autoComplete="off" value={openingPrompt} onChange={(event) => setOpeningPrompt(event.target.value)} onKeyDown={handleOpeningKeyDown} placeholder="Ask anything" />
+            <button className="opening-submit" type="button" aria-label="Open PromptLab" onClick={enterStudio}><ArrowRight size={19}/></button>
+          </div>
+          <span className="opening-hint">Press Enter to open your studio</span>
+        </div>
+        <button className="opening-skip" type="button" onClick={() => { setOpeningVisible(false); window.setTimeout(() => document.getElementById('prompt-input')?.focus(), 0) }}>Skip intro <ArrowRight size={14}/></button>
+      </section>}
+      <main id="home" className="dashboard-shell" inert={openingVisible}>
       <header className="topbar">
         <a className="brand" href="#home" onClick={(event) => { event.preventDefault(); goTo('home') }} aria-label="PromptLab AI home">
           <span className="brand-mark">P</span><span>PromptLab <b>AI</b></span>
@@ -271,11 +316,11 @@ export default function PromptLabDashboard() {
         </article>
 
         <article id="playground" className="composer-panel glass-card">
-          <div className="panel-heading composer-heading"><span className="heading-icon bolt-icon"><Zap size={19}/></span><div><h3>{sections.find((item) => item.id === activeSection)?.name === 'home' ? 'Try It Now' : `Try It Now · ${sections.find((item) => item.id === activeSection)?.name}`}</h3><p>Enter a prompt, choose a model and generate a response.</p></div><button className={`advanced-button ${advanced ? 'advanced-active' : ''}`} onClick={() => setAdvanced(!advanced)}><Settings2 size={14}/> Advanced settings</button></div>
+          <div className="panel-heading composer-heading"><span className="heading-icon bolt-icon"><Zap size={19}/></span><div><h3>{sections.find((item) => item.id === activeSection)?.name ? `Try It Now · ${sections.find((item) => item.id === activeSection)?.name}` : 'Try It Now'}</h3><p>Enter a prompt, choose a model and generate a response.</p></div><button className={`advanced-button ${advanced ? 'advanced-active' : ''}`} onClick={() => setAdvanced(!advanced)}><Settings2 size={14}/> Advanced settings</button></div>
           {advanced && <div className="advanced-controls"><label>Temperature <span>{temperature.toFixed(1)}</span><input type="range" min="0" max="1" step="0.1" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))}/></label><span className="advanced-note">Controls response variation · 0.0–1.0</span></div>}
           <label className="sr-only" htmlFor="prompt-input">Write your prompt</label><textarea id="prompt-input" className="prompt-input" value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={8000} placeholder="e.g. Explain prompt engineering with examples and best practices…" />
           <div className="composer-bottom"><div className="composer-tools"><button className="tool-circle" aria-label="Attach a file (coming soon)" onClick={() => setNotice('File attachments are not enabled yet.')}><Paperclip size={17}/></button><button className="tool-circle" aria-label="Insert code block" onClick={() => setPrompt((current) => `${current}${current ? '\n\n' : ''}Use this code context:\n\`\`\`\n\n\`\`\``)}><Code2 size={17}/></button><button className="tool-circle" aria-label="Insert web context" onClick={() => setPrompt((current) => `${current}${current ? '\n\n' : ''}Use the following context: `)}><Globe size={17}/></button><span className="character-count">{prompt.length}/8000</span></div><div className="generate-controls"><label className="model-select"><span className="google-g">{selectedModel.vendor === 'Google Gemini' ? 'G' : 'Q'}</span><select value={model} onChange={(event) => setModel(event.target.value)} aria-label="Select AI model">{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><ChevronDown size={15}/></label><button className="primary-button generate-button" onClick={generate} disabled={!prompt.trim() || generating}>{generating ? <><LoaderCircle className="spin" size={16}/> Generating</> : <>Generate <Sparkles size={16}/></>}</button></div></div>
-          {error && <div className="response-error" role="alert">{error}</div>}
+          {error && <div className="response-error" role="alert"><span>{error}</span>{errorLink && <a href={errorLink} target="_blank" rel="noreferrer">Open Gateway billing settings <ArrowRight size={13}/></a>}</div>}
           {notice && <div className="inline-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message"><X size={14}/></button></div>}
           {result && <div className="response-card"><div className="response-head"><span><Sparkles size={15}/> Response</span><div><button onClick={copyResult} aria-label="Copy response">{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy'}</button><button onClick={savePrompt}><Bookmark size={15}/> Save prompt</button></div></div><p>{result}</p></div>}
         </article>
@@ -300,6 +345,7 @@ export default function PromptLabDashboard() {
       <section id="techniques" className="below-section glass-card"><div className="panel-heading"><span className="heading-icon"><FlaskConical size={18}/></span><div><h3>Prompt Techniques Lab</h3><p>Learn a pattern, adapt the example, and try it in the AI playground.</p></div></div><div className="techniques-grid">{techniques.map((item) => <button key={item.title} className="technique-card" onClick={() => setTechniquePrompt(item.sample)}><span>{item.title}</span><p>{item.body}</p></button>)}</div><label className="sr-only" htmlFor="technique-example">Editable technique example</label><textarea id="technique-example" className="technique-input" value={techniquePrompt} onChange={(event) => setTechniquePrompt(event.target.value)}/><button className="secondary-button" onClick={useTechnique}>Try this technique <ArrowRight size={15}/></button></section>
 
       <footer className="footer"><a className="brand footer-brand" href="#home" onClick={(event) => { event.preventDefault(); goTo('home') }}><span className="brand-mark">P</span><span>PromptLab <b>AI</b></span></a><span>Thoughtful prompts. Better outcomes.</span><button onClick={() => setNotice('PromptLab AI · AI powered by Vercel AI Gateway.') }><CircleHelp size={14}/> About PromptLab</button></footer>
-    </main>
+      </main>
+    </>
   )
 }
